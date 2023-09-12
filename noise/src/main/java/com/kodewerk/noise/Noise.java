@@ -1,24 +1,12 @@
 package com.kodewerk.noise;
 
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.BenchmarkMode;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
-import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.infra.*;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.*;
+import java.util.stream.*;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -48,22 +36,28 @@ public class Noise {
         @Param({"5000"})
         public int threadCount;
 
-        Thread[] threadPool;
+        @Param({"platform", "virtual"})
+        public String builderType;
+
+        List<Thread> threads;
 
         @Setup(Level.Trial)
         public void setUp() {
             System.out.println("setup " +  threadCount);
-            threadPool = new Thread[threadCount];
-            for (int i = 0; i < threadCount; i++) {
-                threadPool[i] = new Thread(LockSupport::park);
-                threadPool[i].start();
-                //threadPool[i] = Thread.ofVirtual().start(LockSupport::park);
-            }
+            var builder = switch(builderType) {
+                case "platform" -> Thread.ofPlatform();
+                case "virtual" -> Thread.ofVirtual();
+                default -> throw new IllegalArgumentException(
+                        "Unexpected builder type: " + builderType);
+            };
+            threads = IntStream.range(0, threadCount)
+                    .mapToObj(i -> builder.start(LockSupport::park))
+                    .toList();
         }
 
         @TearDown(Level.Trial)
         public void tearDown() {
-            for (Thread thread : threadPool) {
+            for (Thread thread : threads) {
                 LockSupport.unpark(thread);
             }
         }
