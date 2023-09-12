@@ -39,12 +39,17 @@ public class Noise {
 //    @Fork(value = 1, warmups = 1)
 //    @Warmup(iterations=1)
     @Benchmark
-    public void produceGarbageWithParkedThreads(Blackhole sink, BenchmarkState state) {
+    public void produceGarbageWithParkedThreads(Blackhole sink, ThreadBenchmarkState state) {
+        produceGarbage(sink);
+    }
+
+    @Benchmark
+    public void produceGarbageWithParkedVirtualThreads(Blackhole sink, VirtualThreadBenchmarkState state) {
         produceGarbage(sink);
     }
 
     @State(Scope.Benchmark)
-    public static class BenchmarkState {
+    public static class ThreadBenchmarkState {
         @Param({"5000"})
         public int threadCount;
 
@@ -57,7 +62,29 @@ public class Noise {
             for (int i = 0; i < threadCount; i++) {
                 threadPool[i] = new Thread(LockSupport::park);
                 threadPool[i].start();
-                //threadPool[i] = Thread.ofVirtual().start(LockSupport::park);
+            }
+        }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            for (Thread thread : threadPool) {
+                LockSupport.unpark(thread);
+            }
+        }
+    }
+    @State(Scope.Benchmark)
+    public static class VirtualThreadBenchmarkState {
+        @Param({"5000"})
+        public int threadCount;
+
+        Thread[] threadPool;
+
+        @Setup(Level.Trial)
+        public void setUp() {
+            System.out.println("setup " +  threadCount);
+            threadPool = new Thread[threadCount];
+            for (int i = 0; i < threadCount; i++) {
+                threadPool[i] = Thread.ofVirtual().start(LockSupport::park);
             }
         }
 
