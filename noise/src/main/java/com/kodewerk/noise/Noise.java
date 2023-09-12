@@ -14,6 +14,9 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
@@ -45,21 +48,22 @@ public class Noise {
         @Param({"5000"})
         public int threadCount;
 
-        Thread[] threads;
+        Thread[] threadPool;
 
         @Setup(Level.Trial)
         public void setUp() {
             System.out.println("setup " +  threadCount);
-            threads = new Thread[threadCount];
-            for (int i = 0; i < threads.length; i++) {
-                threads[i] = new Thread(() -> LockSupport.park());
-                threads[i].start();
+            threadPool = new Thread[threadCount];
+            for (int i = 0; i < threadCount; i++) {
+                threadPool[i] = new Thread(LockSupport::park);
+                threadPool[i].start();
+                //threadPool[i] = Thread.ofVirtual().start(LockSupport::park);
             }
         }
 
         @TearDown(Level.Trial)
         public void tearDown() {
-            for (Thread thread : threads) {
+            for (Thread thread : threadPool) {
                 LockSupport.unpark(thread);
             }
         }
